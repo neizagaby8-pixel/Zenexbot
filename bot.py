@@ -129,7 +129,6 @@ async def auto_otp_checker(context: ContextTypes.DEFAULT_TYPE):
                 flag, c_code, _ = get_country_info_by_range_or_text(clean_num, "")
                 selected_service = user_target_services.get(target_chat_id, "FACEBOOK")
                 
-                # ইউজারের ইনবক্সের জন্য সম্পূর্ণ তথ্য
                 user_msg_text = (
                     f"🔔 **NEW VERIFICATION CODE RECEIVED**\n"
                     f"━━━━━━━━━━━━━━━━━━━\n"
@@ -141,7 +140,6 @@ async def auto_otp_checker(context: ContextTypes.DEFAULT_TYPE):
                     f"⚡ *Status: Successfully Delivered*"
                 )
                 
-                # নাম্বার ফরম্যাট (যেমন: 26134**6751)
                 if len(clean_num) >= 8:
                     prefix_part = clean_num[:5] 
                     suffix_part = clean_num[-4:] 
@@ -149,12 +147,10 @@ async def auto_otp_checker(context: ContextTypes.DEFAULT_TYPE):
                 else:
                     masked_num = clean_num[:2] + "**" + clean_num[-2:]
                 
-                # গ্রুপের মেসেজ ফরম্যাট (আপনার স্ক্রিনশট অনুযায়ী)
                 group_msg_text = (
                     f"{flag} **{c_code}** | 📘 `{masked_num}` ➔ 🔑 `{otp_text}`"
                 )
                 
-                # ইনলাইন বাটন
                 keyboard = [
                     [
                         InlineKeyboardButton("📢 Channel", url="https://t.me/your_channel_link"),
@@ -164,13 +160,11 @@ async def auto_otp_checker(context: ContextTypes.DEFAULT_TYPE):
                 ]
                 group_reply_markup = InlineKeyboardMarkup(keyboard)
                 
-                # ইউজারের ইনবক্সে পাঠানো
                 try:
                     await context.bot.send_message(chat_id=target_chat_id, text=user_msg_text, parse_mode="Markdown")
                 except Exception as e:
                     print(f"Failed to send user message: {e}")
                 
-                # গ্রুপে পাঠানো
                 try:
                     await context.bot.send_message(
                         chat_id=OTP_GROUP_CHAT_ID, 
@@ -235,7 +229,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "🛠️ Select Service":
         keyboard = [
-            [InlineKeyboardButton("WHATSAPP", callback_data="srv_WHATSAPP"), InlineKeyboardButton("FACEBOOK", callback_data="srv_FACEBOOK")]
+            [InlineKeyboardButton("FACEBOOK", callback_data="srv_FACEBOOK"), InlineKeyboardButton("WHATSAPP", callback_data="srv_WHATSAPP")],
+            [InlineKeyboardButton("DISCORD", callback_data="srv_DISCORD")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         current_srv = user_target_services.get(chat_id, "FACEBOOK")
@@ -254,7 +249,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             res = requests.get(f'{BASE_URL}/liveaccess', headers={'mauthapi': PANEL_API_KEY}, timeout=5).json()
             if res.get('meta', {}).get('code') == 200:
                 services_list = res.get('data', {}).get('services', [])
-                allowed_services = ["FACEBOOK", "WHATSAPP"]
+                allowed_services = ["FACEBOOK", "WHATSAPP", "DISCORD"]
                 current_time_str = time.strftime('%I:%M:%S %p')
                 traffic_text = f"🔥 **10 Minute LIVE Traffic** _(Updated: {current_time_str})_\n\n"
                 
