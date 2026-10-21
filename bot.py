@@ -1,57 +1,125 @@
-if data_code.startswith("getnum_srv_"):
-        selected_service = data_code.split("_")[2]
-        user_target_services[chat_id] = selected_service
+import logging
+import requests
+import json
+import os
+import time
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+import sys
+import io
+import re
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+BOT_TOKEN = "8998738234:AAGpV1zS4miYRC9AxNpSHvJNyWPgkfI9-U4"
+ADMIN_CHAT_ID = 6470943912  
+OTP_GROUP_CHAT_ID = -1003857083035  
+
+PANEL_API_KEY = "MTPXMVWZJWL"
+BASE_URL = "https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api"
+
+sent_otps_cache = set()
+number_to_user_map = {}
+user_target_ranges = {}
+user_target_services = {}
+waiting_for_range = {}
+all_bot_users = set()
+
+def extract_pure_code(full_text):
+    text = str(full_text).strip()
+    match = re.search(r'\b\d{4,8}\b', text)
+    if match:
+        return match.group(0)
+    return text
+
+def get_clean_digits(val):
+    return re.sub(r'\D', '', str(val))
+
+def get_country_info_by_range_or_text(range_str, country_field):
+    c_field = str(country_field).strip().upper()
+    r_str = get_clean_digits(range_str)
+    
+    country_data = {
+        "AM": ("🇦🇲", "ARMENIA"),
+        "BD": ("🇧🇩", "BANGLADESH"),
+        "IN": ("🇮🇳", "INDIA"),
+        "US": ("🇺🇸", "UNITED STATES"),
+        "GB": ("🇬🇧", "UNITED KINGDOM"),
+        "RU": ("🇷🇺", "RUSSIA"),
+        "TJ": ("🇹🇯", "TAJIKISTAN"),
+        "MG": ("🇲🇬", "MADAGASCAR"),
+        "UA": ("🇺🇦", "UKRAINE"),
+        "GN": ("🇬🇳", "GUINEA"),
+        "TG": ("🇹🇬", "TOGO"),
+        "CM": ("🇨🇲", "CAMEROON"),
+        "CI": ("🇨🇮", "IVORY COAST"),
+        "CF": ("🇨🇫", "CENTRAL AFRICAN REPUBLIC"),
+        "BJ": ("🇧🇯", "BENIN"),
+        "MY": ("🇲🇾", "MALAYSIA"),
+        "MA": ("🇲🇦", "MOROCCO"),
+        "SD": ("🇸🇩", "SUDAN"),
+        "TZ": ("🇹🇿", "TANZANIA"),
+        "ZW": ("🇿🇼", "ZIMBABWE"),
+        "DZ": ("🇩🇿", "ALGERIA"),
+        "BO": ("🇧🇴", "BOLIVIA"),
+        "EG": ("🇪🇬", "EGYPT"),
+        "GH": ("🇬🇭", "GHANA"),
+        "BR": ("🇧🇷", "BRAZIL"),
+        "PK": ("🇵🇰", "PAKISTAN"),
+        "ID": ("🇮🇩", "INDONESIA"),
+        "VN": ("🇻🇳", "VIETNAM"),
+        "PH": ("🇵🇭", "PHILIPPINES"),
+        "TR": ("🇹🇷", "TURKEY"),
+        "IR": ("🇮🇷", "IRAN"),
+        "NP": ("🇳🇵", "NEPAL"),
+        "ME": ("🇲🇪", "MONTENEGRO"),
+        "SL": ("🇸🇱", "SIERRA LEONE")
+    }
+
+    if len(c_field) == 2 and c_field in country_data:
+        return country_data[c_field][0], c_field, country_data[c_field][1]
         
-        try:
-            res = requests.get(f'{BASE_URL}/liveaccess', headers={'mauthapi': PANEL_API_KEY}, timeout=5).json()
-            if res.get('meta', {}).get('code') == 200:
-                services_list = res.get('data', {}).get('services', [])
-                keyboard = []
-                has_data = False
+    prefix_to_iso = {
+        "374": "AM", "880": "BD", "91": "IN", "1": "US", "44": "GB", "7": "RU", 
+        "992": "TJ", "261": "MG", "380": "UA", "224": "GN", "228": "TG", 
+        "237": "CM", "225": "CI", "236": "CF", "229": "BJ", "60": "MY", 
+        "212": "MA", "249": "SD", "255": "TZ", "263": "ZW", "213": "DZ", 
+        "591": "BO", "20": "EG", "233": "GH", "55": "BR", "92": "PK",
+        "62": "ID", "84": "VN", "63": "PH", "90": "TR", "98": "IR", "977": "NP",
+        "382": "ME", "232": "SL"
+    }
+    
+    for prefix, iso in sorted(prefix_to_iso.items(), key=lambda x: len(x[0]), reverse=True):
+        if r_str.startswith(prefix):
+            if iso in country_data:
+                return country_data[iso][0], iso, country_data[iso][1]
+
+    return "🌍", c_field if c_field else "INT", "INTERNATIONAL"
+
+async def auto_otp_checker(context: ContextTypes.DEFAULT_TYPE):
+    try:
+        res = requests.get(f'{BASE_URL}/success-otp', headers={'mauthapi': PANEL_API_KEY}, timeout=5)
+        res1 = res.json()
+        if res1.get('meta', {}).get('code') == 200:
+            otps_list = res1.get('data', {}).get('otps', [])
+            
+            for item in otps_list:
+                raw_num = str(item.get('number', '')).strip()
+                clean_num = get_clean_digits(raw_num)
                 
-                for s_item in services_list:
-                    sid = str(s_item.get('sid', '')).strip().upper()
-                    if sid == selected_service:
-                        ranges = s_item.get('ranges', [])
-                        country_groups = {}
-                        
-                        for r_raw in ranges:
-                            r_str = str(r_raw).replace("XXX", "").replace("xxx", "").strip()
-                            flag, c_code, full_name = get_country_info_by_range_or_text(r_str, "")
-                            display_name = f"{full_name} ({c_code})"
-                            
-                            if display_name not in country_groups:
-                                country_groups[display_name] = {"flag": flag, "c_code": c_code, "ranges": []}
-                            country_groups[display_name]["ranges"].append(r_str)
-                        
-                        sorted_countries = sorted(country_groups.items(), key=lambda x: len(x[1]["ranges"]), reverse=True)
-                        
-                        for c_name, info in sorted_countries:
-                            total_otp = len(info["ranges"])
-                            if total_otp < 3:
-                                continue
-                            
-                            btn_text = f"{info['flag']} {c_name} - {total_otp} OTP [HIGH 🟢]"
-                            callback_val = f"cnt_{selected_service}_{info['c_code']}"
-                            
-                            keyboard.append([InlineKeyboardButton(btn_text, callback_data=callback_val)])
-                            has_data = True
-                        break
+                if not clean_num or clean_num not in number_to_user_map:
+                    continue
                 
-                if not has_data:
-                    await query.edit_message_text(f"📭 **No High Traffic ranges available for {selected_service} right now.**", parse_mode="Markdown")
-                    return
+                target_chat_id = number_to_user_map[clean_num]
+                raw_msg = str(item.get('message', '')).strip()
+                otp_text = extract_pure_code(raw_msg)
                 
-                keyboard.append([InlineKeyboardButton("Close", callback_data="close_menu")])
-                reply_markup = InlineKeyboardMarkup(keyboard)
+                otp_id = str(item.get('otp_id', '')).strip()
+                unique_signature = f"id_{otp_id}" if otp_id else f"num_{clean_num}_otp_{otp_text}"
                 
-                await query.edit_message_text(
-                    f"📱 **Select Country / High Traffic Range**\n📘 Service: `{selected_service}`\n\n👇 Choose a country below to view available high ranges:", 
-                    parse_mode="Markdown", 
-                    reply_markup=reply_markup
-                )
-            else:
-                await query.edit_message_text("❌ **Failed to load traffic ranges.**", parse_mode="Markdown")
-        except Exception as e:
-            await query.edit_message_text(f"⚠️ **Error:** `{e}`", parse_mode="Markdown")
-        return
+                if unique_signature in sent_otps_cache:
+                    continue
+                
+                sent_otps_cache.add(unique_signature)
