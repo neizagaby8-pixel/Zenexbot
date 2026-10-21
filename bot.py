@@ -42,39 +42,17 @@ def get_country_info_by_range_or_text(range_str, country_field):
     r_str = get_clean_digits(range_str)
     
     country_data = {
-        "AM": ("🇦🇲", "ARMENIA"),
-        "BD": ("🇧🇩", "BANGLADESH"),
-        "IN": ("🇮🇳", "INDIA"),
-        "US": ("🇺🇸", "UNITED STATES"),
-        "GB": ("🇬🇧", "UNITED KINGDOM"),
-        "RU": ("🇷🇺", "RUSSIA"),
-        "TJ": ("🇹🇯", "TAJIKISTAN"),
-        "MG": ("🇲🇬", "MADAGASCAR"),
-        "UA": ("🇺🇦", "UKRAINE"),
-        "GN": ("🇬🇳", "GUINEA"),
-        "TG": ("🇹🇬", "TOGO"),
-        "CM": ("🇨🇲", "CAMEROON"),
-        "CI": ("🇨🇮", "IVORY COAST"),
-        "CF": ("🇨🇫", "CENTRAL AFRICAN REPUBLIC"),
-        "BJ": ("🇧🇯", "BENIN"),
-        "MY": ("🇲🇾", "MALAYSIA"),
-        "MA": ("🇲🇦", "MOROCCO"),
-        "SD": ("🇸🇩", "SUDAN"),
-        "TZ": ("🇹🇿", "TANZANIA"),
-        "ZW": ("🇿🇼", "ZIMBABWE"),
-        "DZ": ("🇩🇿", "ALGERIA"),
-        "BO": ("🇧🇴", "BOLIVIA"),
-        "EG": ("🇪🇬", "EGYPT"),
-        "GH": ("🇬🇭", "GHANA"),
-        "BR": ("🇧🇷", "BRAZIL"),
-        "PK": ("🇵🇰", "PAKISTAN"),
-        "ID": ("🇮🇩", "INDONESIA"),
-        "VN": ("🇻🇳", "VIETNAM"),
-        "PH": ("🇵🇭", "PHILIPPINES"),
-        "TR": ("🇹🇷", "TURKEY"),
-        "IR": ("🇮🇷", "IRAN"),
-        "NP": ("🇳🇵", "NEPAL"),
-        "ME": ("🇲🇪", "MONTENEGRO"),
+        "AM": ("🇦🇲", "ARMENIA"), "BD": ("🇧🇩", "BANGLADESH"), "IN": ("🇮🇳", "INDIA"),
+        "US": ("🇺🇸", "UNITED STATES"), "GB": ("🇬🇧", "UNITED KINGDOM"), "RU": ("🇷🇺", "RUSSIA"),
+        "TJ": ("🇹🇯", "TAJIKISTAN"), "MG": ("🇲🇬", "MADAGASCAR"), "UA": ("🇺🇦", "UKRAINE"),
+        "GN": ("🇬🇳", "GUINEA"), "TG": ("🇹🇬", "TOGO"), "CM": ("🇨🇲", "CAMEROON"),
+        "CI": ("🇨🇮", "IVORY COAST"), "CF": ("🇨🇫", "CENTRAL AFRICAN REPUBLIC"), "BJ": ("🇧🇯", "BENIN"),
+        "MY": ("🇲🇾", "MALAYSIA"), "MA": ("🇲🇦", "MOROCCO"), "SD": ("🇸🇩", "SUDAN"),
+        "TZ": ("🇹🇿", "TANZANIA"), "ZW": ("🇿🇼", "ZIMBABWE"), "DZ": ("🇩🇿", "ALGERIA"),
+        "BO": ("🇧🇴", "BOLIVIA"), "EG": ("🇪🇬", "EGYPT"), "GH": ("🇬🇭", "GHANA"),
+        "BR": ("🇧🇷", "BRAZIL"), "PK": ("🇵🇰", "PAKISTAN"), "ID": ("🇮🇩", "INDONESIA"),
+        "VN": ("🇻🇳", "VIETNAM"), "PH": ("🇵🇭", "PHILIPPINES"), "TR": ("🇹🇷", "TURKEY"),
+        "IR": ("🇮🇷", "IRAN"), "NP": ("🇳🇵", "NEPAL"), "ME": ("🇲🇪", "MONTENEGRO"),
         "SL": ("🇸🇱", "SIERRA LEONE")
     }
 
@@ -123,3 +101,135 @@ async def auto_otp_checker(context: ContextTypes.DEFAULT_TYPE):
                     continue
                 
                 sent_otps_cache.add(unique_signature)
+                if len(sent_otps_cache) > 1000:
+                    sent_otps_cache.pop()
+                    
+                flag, c_code, _ = get_country_info_by_range_or_text(clean_num, "")
+                selected_service = user_target_services.get(target_chat_id, "FACEBOOK")
+                
+                user_msg_text = (
+                    f"🔔 **NEW VERIFICATION CODE RECEIVED**\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"🌍 Country: {flag} `{c_code}`\n"
+                    f"📱 Number: `+{clean_num}`\n"
+                    f"📌 Service: 📘 `{selected_service}`\n"
+                    f"🔑 OTP Code: `{otp_text}`\n"
+                    f"━━━━━━━━━━━━━━━━━━━\n"
+                    f"⚡ *Status: Successfully Delivered*"
+                )
+                
+                if len(clean_num) >= 8:
+                    prefix_part = clean_num[:5] 
+                    suffix_part = clean_num[-4:] 
+                    masked_num = f"{prefix_part}**{suffix_part}"
+                else:
+                    masked_num = clean_num[:2] + "**" + clean_num[-2:]
+                
+                group_msg_text = f"{flag} **{c_code}** | 📘 `{masked_num}` ➔ 🔑 `{otp_text}`"
+                
+                keyboard = [
+                    [
+                        InlineKeyboardButton("📢 Channel", url="https://t.me/your_channel_link"),
+                        InlineKeyboardButton(f"🔑 {otp_text}", callback_data="noop")
+                    ],
+                    [InlineKeyboardButton("📞 Get Number", url="https://t.me/personal40bot")]
+                ]
+                group_reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                try:
+                    await context.bot.send_message(chat_id=target_chat_id, text=user_msg_text, parse_mode="Markdown")
+                    await context.bot.send_message(chat_id=OTP_GROUP_CHAT_ID, text=group_msg_text, parse_mode="Markdown", reply_markup=group_reply_markup)
+                except Exception as e:
+                    print(f"Send Msg Error: {e}")
+    except Exception as e:
+        print(f"Checker Error: {e}")
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    all_bot_users.add(chat_id)
+
+    keyboard = [
+        [KeyboardButton("📞 Get API Number"), KeyboardButton("⚙️ Set Range")],
+        [KeyboardButton("📱 Get Number"), KeyboardButton("🛠️ Select Service")],
+        [KeyboardButton("📊 Live Traffic"), KeyboardButton("📩 Live OTP Inbox")],
+        [KeyboardButton("👤 Account Profile")]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    
+    welcome_text = (
+        f"👋 **Welcome to Automated OTP Gateway!**\n\n"
+        f"✨ Fast, secure, and reliable virtual number & OTP management service.\n"
+        f"📌 Please choose an option from the menu below to get started:"
+    )
+    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text:
+        return
+    text = update.message.text.strip()
+    chat_id = update.effective_chat.id
+    all_bot_users.add(chat_id)
+
+    if text == "⚙️ Set Range":
+        waiting_for_range[chat_id] = True
+        current_set = user_target_ranges.get(chat_id, "None")
+        await update.message.reply_text(
+            f"✍️ Please send or type your target range number/rid now (e.g., `22501`).\n"
+            f"📌 Current Saved Range: `{current_set}`",
+            parse_mode="Markdown"
+        )
+        return
+
+    if waiting_for_range.get(chat_id, False):
+        if text.startswith("📞") or text.startswith("📱") or text.startswith("🛠️") or text.startswith("📩") or text.startswith("👤") or text.startswith("⚙️") or text.startswith("📊"):
+            waiting_for_range[chat_id] = False
+            await update.message.reply_text("❌ **Range setting cancelled.** Please click buttons normally.", parse_mode="Markdown")
+            return
+
+        user_target_ranges[chat_id] = text.replace("XXX", "").replace("xxx", "").strip()
+        waiting_for_range[chat_id] = False
+        await update.message.reply_text(
+            f"✅ **Target Range/RID Successfully Set:** `{text}`\n\nNow click on **'📱 Get Number'** to choose high traffic ranges.",
+            parse_mode="Markdown"
+        )
+        return
+
+    if text == "🛠️ Select Service":
+        keyboard = [
+            [InlineKeyboardButton("FACEBOOK", callback_data="srv_FACEBOOK"), InlineKeyboardButton("WHATSAPP", callback_data="srv_WHATSAPP")],
+            [InlineKeyboardButton("DISCORD", callback_data="srv_DISCORD")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        current_srv = user_target_services.get(chat_id, "FACEBOOK")
+        await update.message.reply_text(
+            f"🛠️ **Select a service:**\n"
+            f"📌 Current Selected Service: `{current_srv}`\n\n"
+            f"👇 Click a button below to change:",
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+        return
+
+    if text == "📊 Live Traffic":
+        loading_msg = await update.message.reply_text("⌛ **Loading Live Traffic...**", parse_mode="Markdown")
+        try:
+            res = requests.get(f'{BASE_URL}/liveaccess', headers={'mauthapi': PANEL_API_KEY}, timeout=5).json()
+            if res.get('meta', {}).get('code') == 200:
+                services_list = res.get('data', {}).get('services', [])
+                allowed_services = ["FACEBOOK", "WHATSAPP", "DISCORD"]
+                current_time_str = time.strftime('%I:%M:%S %p')
+                traffic_text = f"🔥 **10 Minute LIVE Traffic** _(Updated: {current_time_str})_\n\n"
+                
+                has_data = False
+                for s_item in services_list:
+                    sid = str(s_item.get('sid', '')).strip().upper()
+                    if sid in allowed_services:
+                        ranges = s_item.get('ranges', [])
+                        total_ranges = len(ranges)
+                        
+                        traffic_text += f"📘 **{sid} ({total_ranges} Ranges)**\n"
+                        
+                        country_count = {}
+                        for r_raw in ranges:
+                            r_str = str(r_raw).replace("XXX", "").replace("xxx", "").strip()
+                            flag
